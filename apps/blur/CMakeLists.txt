@@ -3,6 +3,8 @@ project(blur)
 
 enable_testing()
 
+add_compile_options(-march=native -O3 -fopenmp)
+
 # Set up language settings
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -18,6 +20,10 @@ add_halide_generator(blur.generator SOURCES halide_blur_generator.cpp)
 # Filters
 add_halide_library(halide_blur FROM blur.generator)
 
+# Add exo_blur/ to the include path
+set(files "exo_blur/blur.c" "exo_blur/blur.h")
+add_library(exo_blur ${files})
+
 # Main executable
 add_executable(blur_test test.cpp)
 target_compile_options(blur_test PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O2>)
@@ -25,6 +31,7 @@ target_link_libraries(blur_test
                       PRIVATE
                       Halide::Tools
                       halide_blur
+                      exo_blur
                       $<TARGET_NAME_IF_EXISTS:OpenMP::OpenMP_CXX>)
 
 # Test that the app actually works!
