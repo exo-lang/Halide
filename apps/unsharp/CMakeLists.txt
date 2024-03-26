@@ -3,6 +3,8 @@ project(unsharp)
 
 enable_testing()
 
+add_compile_options(-march=native -O3 -fopenmp)
+
 # Set up language settings
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -10,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS NO)
 
 # Find Halide
 find_package(Halide REQUIRED)
+find_package(OpenMP)
 
 # Generator
 add_halide_generator(unsharp.generator SOURCES unsharp_generator.cpp)
@@ -20,13 +23,20 @@ add_halide_library(unsharp_auto_schedule FROM unsharp.generator
                    GENERATOR unsharp
                    AUTOSCHEDULER Halide::Mullapudi2016)
 
+# Add exo_unsharp/ to the include path
+set(files "exo_unsharp/unsharp.c" "exo_unsharp/unsharp.h")
+#set(files "exo_unsharp/unsharp_circular_buffer.c" "exo_unsharp/unsharp.h")
+add_library(exo_unsharp ${files})
+
 # Main executable
 add_executable(unsharp_filter filter.cpp)
 target_link_libraries(unsharp_filter
                       PRIVATE
                       Halide::ImageIO
                       unsharp
-                      unsharp_auto_schedule)
+                      exo_unsharp
+                      unsharp_auto_schedule
+                      $<TARGET_NAME_IF_EXISTS:OpenMP::OpenMP_CXX>)
 
 # Test that the app actually works!
 set(IMAGE ${CMAKE_CURRENT_LIST_DIR}/../images/rgba.png)
