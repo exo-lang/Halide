@@ -5,9 +5,10 @@
 #include "HalideBuffer.h"
 #include "HalideRuntime.h"
 
+#include "exo_unsharp/unsharp.h"
 #include "unsharp.h"
 #include "unsharp_auto_schedule.h"
-#include "exo_unsharp/unsharp.h"
+#include "unsharp_v2.h"
 
 #include "halide_benchmark.h"
 #include "halide_image_io.h"
@@ -27,31 +28,42 @@ int main(int argc, char **argv) {
         unsharp(input, output);
         output.device_sync();
     });
-    printf("Manually-tuned time: %gms\n", best_manual * 1e3);
+    // printf("Manually-tuned time: %gms\n", best_manual * 1e3);
 
     double best_auto = benchmark([&]() {
         unsharp_auto_schedule(input, output);
         output.device_sync();
     });
-    printf("Auto-scheduled time: %gms\n", best_auto * 1e3);
+    // printf("Auto-scheduled time: %gms\n", best_auto * 1e3);
 
+    /*
+    The following code assumes the image comes with the repeated_edge
+    boundary condition per-processed in order to allow for a fair 
+    comparison between Exo and Halide.
+    */
+    Halide::Runtime::Buffer<float, 3> input_v2(input.width() + 6, input.height() + 6, 3);
+    Halide::Runtime::Buffer<float, 3> output_v2(input.width(), input.height(), 3);
     std::vector<float> exo_input((input.width() + 6) * (input.height() + 6) * 3);
     std::vector<float> exo_output(input.width() * input.height() * 3);
 
     for (int y = 0; y < input.height() + 6; y++) {
         for (int x = 0; x < input.width() + 6; x++) {
             for (int c = 0; c < 3; c++) {
-                // // Repeat image
-                // int new_x = (x + input.width() - 3) % input.width();
-                // int new_y = (y + input.height() - 3) % input.height();
                 // Repeat edge
                 int new_x = std::min(std::max(x - 3, 0), input.width() - 1);
                 int new_y = std::min(std::max(y - 3, 0), input.height() - 1);
                 float val = input(new_x, new_y, c);
+                input_v2(x, y, c) = val;
                 exo_input[c * (input.width() + 6) * (input.height() + 6) + y * (input.width() + 6) + x] = val;
             }
         }
     }
+
+    double best_manual_v2 = benchmark([&]() {
+        unsharp_v2(input_v2, output_v2);
+        output.device_sync();
+    });
+    printf("Manually-tuned v2 time: %gms\n", best_manual_v2 * 1e3);
 
     double best_exo = benchmark([&]() {
         // TODO: Is it a fair comparison to copy the data first for Exo? What if handling
@@ -64,18 +76,28 @@ int main(int argc, char **argv) {
 
     printf("Dimensions: %d %d\n", input.width(), input.height());
 
-    for (int y = 0; y < input.width(); y++) {
-        for (int x = 0; x < input.height(); x++) {
+    for (int y = 0; y < output_v2.width(); y++) {
+        for (int x = 0; x < output_v2.height(); x++) {
             for (int c = 0; c < 3; c++) {
-                float tmp = exo_output[c * input.width() * input.height() + y * input.width() + x];
-                if (std::abs(output(x, y, c) - tmp) > 1e-6) {
-                    printf("difference at (%d,%d, %d): %f %f\n", x, y, c, output(x, y, c), tmp);
+                if (std::abs(output(x, y, c) - output_v2(x, y, c)) > 1e-6) {
+                    printf("output_v2 difference at (%d,%d, %d): %f %f\n", x, y, c, output(x, y, c), output_v2(x, y, c));
                     abort();
                 }
             }
         }
     }
 
+    for (int y = 0; y < input.width(); y++) {
+        for (int x = 0; x < input.height(); x++) {
+            for (int c = 0; c < 3; c++) {
+                float tmp = exo_output[c * input.width() * input.height() + y * input.width() + x];
+                if (std::abs(output(x, y, c) - tmp) > 1e-6) {
+                    printf("exo_output difference at (%d,%d, %d): %f %f\n", x, y, c, output(x, y, c), tmp);
+                    abort();
+                }
+            }
+        }
+    }
 
     convert_and_save_image(output, argv[2]);
 

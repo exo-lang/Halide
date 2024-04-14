@@ -16,9 +16,11 @@ find_package(OpenMP)
 
 # Generator
 add_halide_generator(unsharp.generator SOURCES unsharp_generator.cpp)
+add_halide_generator(unsharp_v2.generator SOURCES unsharp_generator_v2.cpp)
 
 # Filters
 add_halide_library(unsharp FROM unsharp.generator)
+add_halide_library(unsharp_v2 FROM unsharp_v2.generator)
 add_halide_library(unsharp_auto_schedule FROM unsharp.generator
                    GENERATOR unsharp
                    AUTOSCHEDULER Halide::Mullapudi2016)
@@ -34,6 +36,7 @@ target_link_libraries(unsharp_filter
                       PRIVATE
                       Halide::ImageIO
                       unsharp
+                      unsharp_v2
                       exo_unsharp
                       unsharp_auto_schedule
                       $<TARGET_NAME_IF_EXISTS:OpenMP::OpenMP_CXX>)
