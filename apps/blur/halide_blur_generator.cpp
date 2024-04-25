@@ -53,8 +53,10 @@ public:
         //     .vectorize(x, 16);
 
         blur_y.tile(x, y, xi, yi, 256, 32)
-                .vectorize(xi, 16).parallel(y);
-        blur_x.compute_at(blur_y, x).vectorize(x, 16);
+              .vectorize(xi, 16)
+              .parallel(y);
+        blur_x.compute_at(blur_y, x)
+              .vectorize(x, 16);
     }
 };
 

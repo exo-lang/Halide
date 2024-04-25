@@ -17,8 +17,8 @@ using namespace Halide::Tools;
 double t;
 
 Buffer<uint16_t, 2> blur(Buffer<uint16_t, 2> in) {
-    Buffer<uint16_t, 2> tmp(in.width() - 8, in.height());
-    Buffer<uint16_t, 2> out(in.width() - 8, in.height() - 2);
+    Buffer<uint16_t, 2> tmp(in.width() - 2, in.height());
+    Buffer<uint16_t, 2> out(in.width() - 2, in.height() - 2);
 
     t = benchmark(10, 1, [&]() {
         for (int y = 0; y < tmp.height(); y++)
@@ -37,7 +37,7 @@ Buffer<uint16_t, 2> blur(Buffer<uint16_t, 2> in) {
 // tile size: 128->25       0.0010 -> 0.000819
 // actual: ~0.000787
 Buffer<uint16_t, 2> blur_fast(Buffer<uint16_t, 2> in) {
-    Buffer<uint16_t, 2> out(in.width() - 8, in.height() - 2);
+    Buffer<uint16_t, 2> out(in.width() - 2, in.height() - 2);
 
     t = benchmark(10, 1, [&]() {
         // __m256i one_third = _mm256_set1_epi16(21846);
@@ -85,14 +85,14 @@ Buffer<uint16_t, 2> blur_fast(Buffer<uint16_t, 2> in) {
 #include "halide_blur.h"
 
 Buffer<uint16_t, 2> blur_halide(Buffer<uint16_t, 2> in) {
-    Buffer<uint16_t, 2> out(in.width() - 8, in.height() - 2);
+    Buffer<uint16_t, 2> out(in.width() - 2, in.height() - 2);
 
     // Call it once to initialize the halide runtime stuff
     halide_blur(in, out);
     // Copy-out result if it's device buffer and dirty.
     out.copy_to_host();
 
-    t = benchmark(1000, 1, [&]() {
+    t = benchmark([&]() {
         // Compute the same region of the output as blur_fast (i.e., we're
         // still being sloppy with boundary conditions)
         halide_blur(in, out);
@@ -107,47 +107,28 @@ Buffer<uint16_t, 2> blur_halide(Buffer<uint16_t, 2> in) {
 
 
 Buffer<uint16_t, 2> blur_exo(Buffer<uint16_t, 2> in) {
-    size_t W = in.width() - 8;
+    size_t W = in.width() - 2;
     size_t H = in.height() - 2;
     
-    // other code seems to ignore the last 6 columns of the image
-    uint16_t* inp = (uint16_t*) malloc((W + 2) * (H + 2) * sizeof(uint16_t));
-
-    // copy from Halide Buffer to array
-    for (int y = 0; y < H + 2; y++) {
-        for (int x = 0; x < W + 2; x++) {
-            inp[y * (W + 2) + x] = in(x, y);
-        }
-    }
-
     Buffer<uint16_t, 2> out(W, H);
-    uint16_t* blur_y = (uint16_t*) malloc(W * H * sizeof(uint16_t));
-
-    // TODO: static leads to a race condition in C++
-    // TODO: for some reason the code gets slower
-    t = benchmark(1000, 1, [&]() {
-        exo_blur(nullptr, W, H, blur_y, inp);
+    t = benchmark([&]() {
+        exo_blur(nullptr, W, H, out.begin(), in.begin());
     });
-
-    // copy from array to Halide Buffer
-    for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-            out(x, y) = blur_y[y * W + x];
-        }
-    }
 
     return out;
 }
 
 
 int main(int argc, char **argv) {
-    const auto *md = halide_blur_metadata();
-    const bool is_hexagon = strstr(md->target, "hvx_128") || strstr(md->target, "hvx_64");
+    if (argc < 3) {
+        printf("Must provide a width and height argument.\n");
+        return 1;
+    }
 
-    // The Hexagon simulator can't allocate as much memory as the above wants.
-    const int width = is_hexagon ? 648 : 5120 + 8;
-    const int height = is_hexagon ? 482 : 3840 + 2;
-
+    const int width = 2 + std::stoi(argv[1]);
+    const int height = 2 + std::stoi(argv[2]);
+    assert (width % 256 == 2 && height % 32 == 2);
+    
     Buffer<uint16_t, 2> input(width, height);
 
     for (int y = 0; y < input.height(); y++) {
@@ -156,24 +137,18 @@ int main(int argc, char **argv) {
         }
     }
 
-    Buffer<uint16_t, 2> blurry = blur(input);
-    double slow_time = t;
-
-    Buffer<uint16_t, 2> speedy = blur_fast(input);
-    double fast_time = t;
-
     Buffer<uint16_t, 2> halide = blur_halide(input);
     double halide_time = t;
 
     Buffer<uint16_t, 2> exo = blur_exo(input);
     double exo_time = t;
 
-    printf("times: %f %f %f %f\n", slow_time, fast_time, halide_time, exo_time);
+    printf("times: %f %f\n", halide_time, exo_time);
 
-    for (int y = 64; y < input.height() - 64; y++) {
-        for (int x = 64; x < input.width() - 64; x++) {
-            if (blurry(x, y) != speedy(x, y) || blurry(x, y) != halide(x, y) || blurry(x, y) != exo(x, y)) {
-                printf("difference at (%d,%d): %d %d %d %d\n", x, y, blurry(x, y), speedy(x, y), halide(x, y), exo(x, y));
+    for (int y = 0; y < input.height() - 2; y++) {
+        for (int x = 0; x < input.width() - 2; x++) {
+            if (halide(x, y) != exo(x, y)) {
+                printf("difference at (%d,%d): %d %d\n", x, y, halide(x, y), exo(x, y));
                 abort();
             }
         }

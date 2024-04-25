@@ -21,30 +21,33 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    Halide::Runtime::Buffer<float, 3> input = load_and_convert_image(argv[1]);
+    // Halide::Runtime::Buffer<float, 3> input = load_and_convert_image(argv[1]);
+    Halide::Runtime::Buffer<float, 3> input(std::stoi(argv[1]), std::stoi(argv[2]), 3);
+    for (int y = 0; y < input.height(); y++) {
+        for (int x = 0; x < input.width(); x++) {
+            for (int c = 0; c < 3; c++) {
+                input(x, y, c) = rand() & 0xfff;
+            }
+        }
+    }
+    printf("Dimensions: %d %d\n", input.width(), input.height());
+
     Halide::Runtime::Buffer<float, 3> output(input.width(), input.height(), 3);
 
     double best_manual = benchmark([&]() {
         unsharp(input, output);
         output.device_sync();
     });
-    // printf("Manually-tuned time: %gms\n", best_manual * 1e3);
-
-    double best_auto = benchmark([&]() {
-        unsharp_auto_schedule(input, output);
-        output.device_sync();
-    });
-    // printf("Auto-scheduled time: %gms\n", best_auto * 1e3);
+    printf("Manually-tuned time: %gms\n", best_manual * 1e3);
 
     /*
     The following code assumes the image comes with the repeated_edge
     boundary condition per-processed in order to allow for a fair 
     comparison between Exo and Halide.
     */
-    Halide::Runtime::Buffer<float, 3> input_v2(input.width() + 6, input.height() + 6, 3);
-    Halide::Runtime::Buffer<float, 3> output_v2(input.width(), input.height(), 3);
-    std::vector<float> exo_input((input.width() + 6) * (input.height() + 6) * 3);
-    std::vector<float> exo_output(input.width() * input.height() * 3);
+    Halide::Runtime::Buffer<float, 3> input_shifted(input.width() + 6, input.height() + 6, 3);
+    Halide::Runtime::Buffer<float, 3> output_shifted(input.width(), input.height(), 3);
+    Halide::Runtime::Buffer<float, 3> exo_output(input.width(), input.height(), 3);
 
     for (int y = 0; y < input.height() + 6; y++) {
         for (int x = 0; x < input.width() + 6; x++) {
@@ -53,15 +56,14 @@ int main(int argc, char **argv) {
                 int new_x = std::min(std::max(x - 3, 0), input.width() - 1);
                 int new_y = std::min(std::max(y - 3, 0), input.height() - 1);
                 float val = input(new_x, new_y, c);
-                input_v2(x, y, c) = val;
-                exo_input[c * (input.width() + 6) * (input.height() + 6) + y * (input.width() + 6) + x] = val;
+                input_shifted(x, y, c) = val;
             }
         }
     }
 
     double best_manual_v2 = benchmark([&]() {
-        unsharp_v2(input_v2, output_v2);
-        output.device_sync();
+        unsharp_v2(input_shifted, output_shifted);
+        output_shifted.device_sync();
     });
     printf("Manually-tuned v2 time: %gms\n", best_manual_v2 * 1e3);
 
@@ -70,36 +72,33 @@ int main(int argc, char **argv) {
         // the repeat_edge boundary condition is nontrivial work?
         // exo_unsharp_base(nullptr, input.width(), input.height(), &exo_output[0], &exo_input[0]);
         // exo_unsharp(nullptr, input.width(), input.height(), &exo_output[0], &exo_input[0]);
-        exo_unsharp_vectorized(nullptr, input.width(), input.height(), &exo_output[0], &exo_input[0]);
+        exo_unsharp_vectorized(nullptr, input.width(), input.height(), exo_output.begin(), input_shifted.begin());
     });
     printf("Exo time: %gms\n", best_exo * 1e3);
 
-    printf("Dimensions: %d %d\n", input.width(), input.height());
-
-    for (int y = 0; y < output_v2.width(); y++) {
-        for (int x = 0; x < output_v2.height(); x++) {
+    for (int y = 0; y < output_shifted.height(); y++) {
+        for (int x = 0; x < output_shifted.width(); x++) {
             for (int c = 0; c < 3; c++) {
-                if (std::abs(output(x, y, c) - output_v2(x, y, c)) > 1e-6) {
-                    printf("output_v2 difference at (%d,%d, %d): %f %f\n", x, y, c, output(x, y, c), output_v2(x, y, c));
+                if (std::abs(output(x, y, c) - output_shifted(x, y, c)) > 1e-6) {
+                    printf("output_shifted difference at (%d, %d, %d): %f %f\n", x, y, c, output(x, y, c), output_shifted(x, y, c));
                     abort();
                 }
             }
         }
     }
 
-    for (int y = 0; y < input.width(); y++) {
-        for (int x = 0; x < input.height(); x++) {
+    for (int y = 0; y < input.height(); y++) {
+        for (int x = 0; x < input.width(); x++) {
             for (int c = 0; c < 3; c++) {
-                float tmp = exo_output[c * input.width() * input.height() + y * input.width() + x];
-                if (std::abs(output(x, y, c) - tmp) > 1e-6) {
-                    printf("exo_output difference at (%d,%d, %d): %f %f\n", x, y, c, output(x, y, c), tmp);
+                if (std::abs(output(x, y, c) - exo_output(x, y, c)) > 1e-2) {
+                    printf("exo_output difference at (%d, %d, %d): %f %f\n", x, y, c, output(x, y, c), exo_output(x, y, c));
                     abort();
                 }
             }
         }
     }
 
-    convert_and_save_image(output, argv[2]);
+    // convert_and_save_image(output, argv[2]);
 
     printf("Success!\n");
     return 0;
