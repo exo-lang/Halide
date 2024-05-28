@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
             }
         }
     }
-    printf("Dimensions: %d %d\n", input.width(), input.height());
+    printf("%d %d\n", input.width(), input.height());
 
     Halide::Runtime::Buffer<float, 3> output(input.width(), input.height(), 3);
 
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         unsharp(input, output);
         output.device_sync();
     });
-    printf("Manually-tuned time: %gms\n", best_manual * 1e3);
+    //printf("Manually-tuned time: %gms\n", best_manual * 1e3);
 
     /*
     The following code assumes the image comes with the repeated_edge
@@ -65,16 +65,14 @@ int main(int argc, char **argv) {
         unsharp_v2(input_shifted, output_shifted);
         output_shifted.device_sync();
     });
-    printf("Manually-tuned v2 time: %gms\n", best_manual_v2 * 1e3);
+    //printf("Manually-tuned v2 time: %gms\n", best_manual_v2 * 1e3);
 
     double best_exo = benchmark([&]() {
-        // TODO: Is it a fair comparison to copy the data first for Exo? What if handling
-        // the repeat_edge boundary condition is nontrivial work?
         // exo_unsharp_base(nullptr, input.width(), input.height(), &exo_output[0], &exo_input[0]);
         // exo_unsharp(nullptr, input.width(), input.height(), &exo_output[0], &exo_input[0]);
         exo_unsharp_vectorized(nullptr, input.width(), input.height(), exo_output.begin(), input_shifted.begin());
     });
-    printf("Exo time: %gms\n", best_exo * 1e3);
+    printf("times: %g %g\n", best_manual_v2 * 1e3, best_exo * 1e3);
 
     for (int y = 0; y < output_shifted.height(); y++) {
         for (int x = 0; x < output_shifted.width(); x++) {
