@@ -125,8 +125,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    const int width = 2 + std::stoi(argv[1]);
-    const int height = 2 + std::stoi(argv[2]);
+    const int width = 2 + std::atoi(argv[1]);
+    const int height = 2 + std::atoi(argv[2]);
     assert (width % 256 == 2 && height % 32 == 2);
     
     Buffer<uint16_t, 2> input(width, height);
