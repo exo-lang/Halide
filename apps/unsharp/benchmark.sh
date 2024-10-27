@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the program to run
-program="./unsharp_filter"
+program="build/unsharp_filter"
 
 # Define the set of arguments
 w_args=(1280 2560 5120)
