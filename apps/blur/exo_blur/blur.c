@@ -1,15 +1,11 @@
 #include "blur.h"
 
-
-
 #include <immintrin.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-
-
 
 
 /* relying on the following instruction..."
@@ -21,13 +17,13 @@ avx2_ui16_divide_by_3(out,x)
     }}
     
 */
-// blur(
+// exo_base_blur(
 //     W : size,
 //     H : size,
 //     blur_y : ui16[H, W] @DRAM,
 //     inp : ui16[H + 2, W + 2] @DRAM
 // )
-void blur( void *ctxt, int_fast32_t W, int_fast32_t H, uint16_t* blur_y, const uint16_t* inp ) {
+void exo_base_blur( void *ctxt, int_fast32_t W, int_fast32_t H, uint16_t* blur_y, const uint16_t* inp ) {
 EXO_ASSUME(H % 32 == 0);
 EXO_ASSUME(W % 256 == 0);
 uint16_t *blur_x = (uint16_t*) malloc((H + 2) * W * sizeof(*blur_x));
@@ -44,13 +40,13 @@ for (int_fast32_t y = 0; y < H; y++) {
 free(blur_x);
 }
 
-// exo_blur(
+// exo_blur_halide(
 //     W : size,
 //     H : size,
 //     blur_y : ui16[H, W] @DRAM,
 //     inp : ui16[H + 2, W + 2] @DRAM
 // )
-void exo_blur( void *ctxt, int_fast32_t W, int_fast32_t H, uint16_t* blur_y, const uint16_t* inp ) {
+void exo_blur_halide( void *ctxt, int_fast32_t W, int_fast32_t H, uint16_t* blur_y, const uint16_t* inp ) {
 EXO_ASSUME(H % 32 == 0);
 EXO_ASSUME(W % 256 == 0);
 #pragma omp parallel for

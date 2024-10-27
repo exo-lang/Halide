@@ -55,7 +55,7 @@ def create_graph(data, kernel):
     ax.yaxis.tick_left()
     #sns.set(font_scale=1.4)
 
-    plt.title("Runtime of Halide / AIRxo")
+    plt.title("Runtime of Halide / Exo 2")
     plt.xlabel("Width (pixels)")
     plt.ylabel("Height (pixels)")
 
