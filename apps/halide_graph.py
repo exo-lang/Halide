@@ -4,7 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import seaborn as sns
+import matplotlib.font_manager
 
+
+plt.rcParams['figure.figsize'] = 4*(3.33/6), 3.5*(3.33/6)
+
+rc_fonts = {
+    "font.family": "serif",
+    'font.serif': 'Linux Libertine O',
+    "pdf.fonttype" : 42,
+    "ps.fonttype" : 42
+}
+plt.rcParams.update(rc_fonts)
 
 def create_graph(data, kernel):
     values = np.array(list(data.values())).reshape(3, 3)
@@ -12,7 +23,7 @@ def create_graph(data, kernel):
     x_labels = [1280, 2560, 5120]
     y_labels = [960, 1920, 3840]
 
-    sns.set(font_scale=2.0)
+    sns.set(font='Linux Libertine O')
     cmap = mcolors.LinearSegmentedColormap.from_list(
         "custom_colormap", ["red", "lightgreen", "green"], N=256
     )
@@ -27,12 +38,11 @@ def create_graph(data, kernel):
         vmax=1.2,
         cbar=False,
         clip_on=False,
-        linewidths=2,
+        linewidths=1,
         linecolor='black',
         annot_kws={
             'color': 'black',
-            'fontfamily': 'serif',
-            'fontweight': 'regular'
+            'fontweight': 'bold'
         }
     )
 
@@ -41,11 +51,15 @@ def create_graph(data, kernel):
     ax.axvline(x=0, color='k',linewidth=2)
     ax.axvline(x=3, color='k',linewidth=2)
 
-    plt.title("Exo speedup over Halide")
-    plt.xlabel("Out Width (pixels)")
-    plt.ylabel("Out Height (pixels)")
+    ax.xaxis.tick_bottom()
+    ax.yaxis.tick_left()
+    #sns.set(font_scale=1.4)
 
-    plt.subplots_adjust(bottom=0.20, left=.15)
+    plt.title("Runtime of Halide / AIRxo")
+    plt.xlabel("Width (pixels)")
+    plt.ylabel("Height (pixels)")
+
+    plt.subplots_adjust(bottom=0.26, left=.25)
     plt.savefig(f"{kernel}_speedup_heatmap.pdf", format="pdf")
 
 
