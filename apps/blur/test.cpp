@@ -112,7 +112,7 @@ Buffer<uint16_t, 2> blur_exo(Buffer<uint16_t, 2> in) {
     
     Buffer<uint16_t, 2> out(W, H);
     t = benchmark([&]() {
-        exo_blur(nullptr, W, H, out.begin(), in.begin());
+        exo_blur_halide(nullptr, W, H, out.begin(), in.begin());
     });
 
     return out;
